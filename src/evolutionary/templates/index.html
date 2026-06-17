@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ポケカABC - 進化計算ダッシュボード</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Chart.js をインクルード -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>Pokémon TCG AI - 進化計算ダッシュボード</h1>
+            <div class="header-right">
+                <div class="nav-links">
+                    <a href="/" class="nav-link active">トレーニング</a>
+                    <a href="/visualizer" class="nav-link">対戦ビジュアライザ</a>
+                </div>
+                <div class="system-time">
+                    <span id="elapsed-time">経過時間: 00:00:00</span>
+                    <span class="divider">/</span>
+                    <span id="timer-limit-display">タイマー設定: 03:00:00</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="app-main">
+            <!-- 設定カード -->
+            <section class="card control-panel">
+                <h2>トレーニング設定</h2>
+                <div class="form-group">
+                    <label for="algorithm">学習アルゴリズム:</label>
+                    <select id="algorithm">
+                        <option value="ga" selected>遺伝的アルゴリズム (GA)</option>
+                        <option value="pytorch_rl">PyTorch 強化学習 (Self-Play)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="generations">最大世代数 / 総ゲーム数:</label>
+                    <input type="number" id="generations" value="50" min="1">
+                </div>
+                <div class="form-group">
+                    <label for="population_size">個体数 (Population Size):</label>
+                    <input type="number" id="population_size" value="20" min="4">
+                </div>
+                <div class="form-group">
+                    <label for="num_games">評価対戦数 / 個体:</label>
+                    <input type="number" id="num_games" value="3" min="1">
+                </div>
+                <div class="form-group">
+                    <label for="timer_hours">タイマー設定 (時間):</label>
+                    <input type="number" id="timer_hours" value="3.0" min="0.1" step="0.1">
+                </div>
+                
+                <div class="button-group">
+                    <button id="btn-start" class="btn btn-primary">学習開始</button>
+                    <button id="btn-pause" class="btn btn-secondary" disabled>一時停止</button>
+                    <button id="btn-stop" class="btn btn-danger" disabled>停止</button>
+                </div>
+            </section>
+
+            <!-- ステータスカード -->
+            <section class="card status-panel">
+                <h2>現在のステータス</h2>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <span class="status-label">状態</span>
+                        <span id="status-running" class="status-val badge-inactive">未開始</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">現在の世代</span>
+                        <span id="status-generation" class="status-val">0 / 50</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">最良スコア</span>
+                        <span id="status-best-score" class="status-val">0.0</span>
+                    </div>
+                </div>
+                <div class="progress-bar-container">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+                <div class="status-message">
+                    <span class="status-label">現在の処理:</span>
+                    <p id="status-msg" class="msg-box">ダッシュボードが起動しました。パラメータを設定して「学習開始」を押してください。</p>
+                </div>
+            </section>
+
+            <!-- グラフカード -->
+            <section class="card graph-panel">
+                <h2>適合度推移 (最良スコアの世代ごとの履歴)</h2>
+                <div class="chart-container">
+                    <canvas id="fitness-chart"></canvas>
+                </div>
+            </section>
+
+            <!-- パラメータカード -->
+            <section class="card weights-panel">
+                <h2>現在の最良評価重みパラメータ (遺伝子)</h2>
+                <div class="weights-grid">
+                    <div class="weight-card">
+                        <span class="weight-title">取得サイド</span>
+                        <span id="w-0" class="weight-val">0.0</span>
+                    </div>
+                    <div class="weight-card">
+                        <span class="weight-title">相手サイド</span>
+                        <span id="w-1" class="weight-val">0.0</span>
+                    </div>
+                    <div class="weight-card">
+                        <span class="weight-title">自ポケモン</span>
+                        <span id="w-2" class="weight-val">0.0</span>
+                    </div>
+                    <div class="weight-card">
+                        <span class="weight-title">敵ポケモン</span>
+                        <span id="w-3" class="weight-val">0.0</span>
+                    </div>
+                    <div class="weight-card">
+                        <span class="weight-title">自総HP</span>
+                        <span id="w-4" class="weight-val">0.0</span>
+                    </div>
+                    <div class="weight-card">
+                        <span class="weight-title">敵総HP</span>
+                        <span id="w-5" class="weight-val">0.0</span>
+                    </div>
+                    <div class="weight-card">
+                        <span class="weight-title">自エネルギー</span>
+                        <span id="w-6" class="weight-val">0.0</span>
+                    </div>
+                    <div class="weight-card">
+                        <span class="weight-title">敵エネルギー</span>
+                        <span id="w-7" class="weight-val">0.0</span>
+                    </div>
+                    <div class="weight-card">
+                        <span class="weight-title">自手札数</span>
+                        <span id="w-8" class="weight-val">0.0</span>
+                    </div>
+                    <div class="weight-card">
+                        <span class="weight-title">自トラッシュ</span>
+                        <span id="w-9" class="weight-val">0.0</span>
+                    </div>
+                </div>
+                <div class="save-info">
+                    ※ 最良の重みパラメータは各世代終了時に <code>src/evolutionary/best_weights.txt</code> に自動保存されます。
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

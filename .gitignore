@@ -1,0 +1,16 @@
+# Large PDF files
+pokemon-tcg-ai-battle/*.pdf
+
+# Python artifacts
+__pycache__/
+*.pyc
+
+# Local Virtual Environments
+venv/
+.venv/
+
+# PyTorch models
+src/evolutionary/*.pth
+
+# Build submissions
+submission.tar.gz
