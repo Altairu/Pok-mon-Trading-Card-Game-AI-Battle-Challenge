@@ -16,7 +16,12 @@ DEFAULT_WEIGHTS = [
     10.0,
     -5.0,
     2.0,
-    0.1
+    0.1,
+    30.0,  # イワパレスのバトル場配置
+    25.0,  # ヒーローマント貼付
+    20.0,  # イワパレスのエネルギー3個以上（ジャンボアイス発動条件）
+    15.0,  # ベンチのメガガルーラex
+    10.0   # 相手バトルポケモンの逃げるコスト（ボスの指令による縛り）
 ]
 
 # グローバルな学習ステータス（Flask から参照、操作されます）
@@ -41,7 +46,7 @@ training_status = {
 def get_features(obs: Observation) -> list[float]:
     """Observation から盤面特徴量ベクトルを抽出します。"""
     if obs is None or obs.current is None:
-        return [0.0] * 10
+        return [0.0] * 15
         
     state = obs.current
     your_idx = state.yourIndex
@@ -83,6 +88,42 @@ def get_features(obs: Observation) -> list[float]:
     my_hand_count = me.handCount if me.hand is None else len(me.hand)
     # 10. 自分のトラッシュ枚数
     my_discard_count = len(me.discard)
+
+    # 11. iwapalace_in_active: 自分のバトル場がイワパレス (ID 345) か
+    iwapalace_in_active = 0.0
+    has_hero_cape_on_iwapalace = 0.0
+    iwapalace_energy_ge_3 = 0.0
+    
+    for p in me.active:
+        if p is not None and p.id == 345:
+            iwapalace_in_active = 1.0
+            # 12. has_hero_cape_on_iwapalace: イワパレスにヒーローマント (ID 1159) が付いているか
+            if any(t.id == 1159 for t in p.tools):
+                has_hero_cape_on_iwapalace = 1.0
+            # 13. iwapalace_energy_ge_3: イワパレスにエネルギーが3個以上付いているか
+            if len(p.energies) >= 3:
+                iwapalace_energy_ge_3 = 1.0
+                
+    # 14. megagangaskhan_on_bench: ベンチにメガガルーラex (ID 756) がいるか
+    megagangaskhan_on_bench = 0.0
+    for p in me.bench:
+        if p is not None and p.id == 756:
+            megagangaskhan_on_bench = 1.0
+            
+    # 15. opp_active_retreat_cost: 相手のバトルポケモンの逃げるエネルギーコスト
+    opp_retreat_cost = 0.0
+    RETREAT_COSTS = {
+        63: 2.0,   # タケルライコex
+        96: 1.0,   # オーガポンex (みどりのめん)
+        117: 1.0,  # オーガポンex (いしずえのめん)
+        122: 1.0,  # シャリタツ
+        344: 2.0,  # イシズマイ
+        345: 3.0,  # イワパレス
+        756: 3.0,  # メガガルーラex
+    }
+    for p in opp.active:
+        if p is not None:
+            opp_retreat_cost = RETREAT_COSTS.get(p.id, 1.0)
     
     return [
         float(my_prizes_taken),
@@ -94,7 +135,12 @@ def get_features(obs: Observation) -> list[float]:
         float(my_energy),
         float(opp_energy),
         float(my_hand_count),
-        float(my_discard_count)
+        float(my_discard_count),
+        float(iwapalace_in_active),
+        float(has_hero_cape_on_iwapalace),
+        float(iwapalace_energy_ge_3),
+        float(megagangaskhan_on_bench),
+        float(opp_retreat_cost)
     ]
 
 def evaluate_state(obs: Observation, weights: list[float]) -> float:
@@ -415,9 +461,9 @@ def train_pytorch_rl_loop():
     training_status["best_score"] = 0.0
     training_status["message"] = "学習開始 (PyTorch RL)"
     
-    device = torch.device("cpu")
-    policy_net = ValueNetwork().to(device)
-    target_net = ValueNetwork().to(device)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    policy_net = ValueNetwork(input_dim=15).to(device)
+    target_net = ValueNetwork(input_dim=15).to(device)
     
     model_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "evolutionary")
     os.makedirs(model_dir, exist_ok=True)
@@ -514,7 +560,7 @@ def train_pytorch_rl_loop():
                                 if my_deck_len <= 5:
                                     reward -= (6.0 - my_deck_len) * 1.5
                                 
-                                s_prime = [0.0] * 10
+                                s_prime = [0.0] * 15
                                 buffer.push(prev_state[p_idx], reward, s_prime, 1.0)
                         break
                         

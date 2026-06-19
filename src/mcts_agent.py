@@ -144,7 +144,10 @@ class MctsAgent(BaseAgent):
                 
                 # --- SELECT ---
                 while not node.is_terminal() and node.is_fully_expanded() and len(node.children) > 0:
-                    node = node.best_child()
+                    next_node = node.best_child()
+                    if next_node is None:
+                        break
+                    node = next_node
                 
                 # --- EXPAND ---
                 if not node.is_terminal() and not node.is_fully_expanded():

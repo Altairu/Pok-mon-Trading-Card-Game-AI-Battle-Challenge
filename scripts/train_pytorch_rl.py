@@ -110,12 +110,12 @@ def evaluate_model(policy_net, device, num_games=20):
 
 def train():
     """10000回の対決を通して強化学習モデルのトレーニングを行うメインループ。"""
-    # GPUの互換性エラーを回避するためCPUで実行します
-    device = torch.device("cpu")
+    # GPUの互換性エラーを回避するため、CUDAが利用可能な場合はCUDAを使用します
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"デバイス: {device}")
     
-    policy_net = ValueNetwork().to(device)
-    target_net = ValueNetwork().to(device)
+    policy_net = ValueNetwork(input_dim=15).to(device)
+    target_net = ValueNetwork(input_dim=15).to(device)
     
     model_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "evolutionary")
     os.makedirs(model_dir, exist_ok=True)
@@ -190,7 +190,7 @@ def train():
                                 if my_deck_len <= 5:
                                     reward -= (6.0 - my_deck_len) * 1.5
                                 
-                                s_prime = [0.0] * 10
+                                s_prime = [0.0] * 15
                                 buffer.push(prev_state[p_idx], reward, s_prime, 1.0)
                         break
                         

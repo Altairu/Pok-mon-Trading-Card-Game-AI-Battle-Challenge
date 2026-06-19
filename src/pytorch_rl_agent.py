@@ -8,7 +8,7 @@ from src.evolutionary.ga import get_features
 
 class ValueNetwork(nn.Module):
     """盤面状態の特徴量からその状態の価値を予測するニューラルネットワークモデル。"""
-    def __init__(self, input_dim=10, hidden_dim=64):
+    def __init__(self, input_dim=15, hidden_dim=64):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
@@ -26,8 +26,7 @@ class PytorchRlAgent(BaseAgent):
     def __init__(self, deck_path="deck.csv", model_path=None, epsilon=0.1):
         super().__init__(deck_path)
         self.epsilon = epsilon
-        # GPUの互換性エラーを回避するためCPUで実行します
-        self.device = torch.device("cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         self.model = ValueNetwork().to(self.device)
         self.model.eval()
