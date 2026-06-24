@@ -4,6 +4,7 @@ from .evolutionary.evolutionary_agent import EvolutionaryAgent
 from .mcts_agent import MctsAgent
 from .rl_agent import RlAgent
 from .pytorch_rl_agent import PytorchRlAgent
+from .enhanced_mcts_agent import EnhancedMctsAgent
 
 def get_agent(agent_type: str = "random", **kwargs) -> BaseAgent:
     """
@@ -20,5 +21,7 @@ def get_agent(agent_type: str = "random", **kwargs) -> BaseAgent:
         return RlAgent(**kwargs)
     elif agent_type == "pytorch_rl":
         return PytorchRlAgent(**kwargs)
+    elif agent_type == "enhanced_mcts":
+        return EnhancedMctsAgent(**kwargs)
     else:
         raise ValueError(f"未知のエージェントタイプ: {agent_type}")

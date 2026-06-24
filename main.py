@@ -9,11 +9,14 @@ def agent(obs_dict: dict) -> list[int]:
     """
     global _agent_instance
     if _agent_instance is None:
-        # 遺伝的アルゴリズムを使用する進化計算エージェントをロードします。
-        # 動作テストや元のベースラインに戻す場合は、引数を "random" に変更します。
-        _agent_instance = get_agent("rl")
-        #evolutionary" 遺伝的アルゴリズムを使用して進化させたルールベースエージェントです。
-        #"pytorch_rl" 今回新しく実装した、PyTorchのニューラルネットワークモデルを使用してプレイする強化学習エージェントです。
-        #"mcts" モンテカルロ木探索アルゴリズムを使用して数手先を予測しながらプレイする先読みエージェントです。
-        #"rl" 時間的差分（TD）学習を用いた、線形評価モデルベースの強化学習エージェントです。
+        # 強化MCTSエージェントを使用する。
+        # 10分の時間制限を活用し、Progressive Bias付きMCTS＋ヒューリスティックプレイアウトで
+        # 高精度な意思決定を行う。
+        _agent_instance = get_agent("enhanced_mcts")
+        # "enhanced_mcts" Progressive Bias、ヒューリスティックプレイアウト、フェーズ対応の強化MCTSエージェント
+        # "mcts"         モンテカルロ木探索（旧バージョン、50イテレーション固定）
+        # "rl"           時間的差分学習による線形評価モデルエージェント
+        # "pytorch_rl"   PyTorchニューラルネットワークを使用した強化学習エージェント
+        # "evolutionary" 遺伝的アルゴリズムで最適化されたルールベースエージェント
+        # "random"       ランダムにアクションを選択するベースライン
     return _agent_instance.select_action(obs_dict)

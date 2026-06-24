@@ -9,7 +9,7 @@ from cg.game import battle_start, battle_select, battle_finish
 from src.agent_factory import get_agent
 
 # 対戦対象のエージェント
-agent_types = ["random", "evolutionary", "mcts", "rl", "pytorch_rl"]
+agent_types = ["random", "evolutionary", "mcts", "rl", "pytorch_rl", "enhanced_mcts"]
 
 def run_game(p0_type, p1_type):
     """1試合の対戦を実行し、勝者(0:P0, 1:P1)とターン数を返します。"""
@@ -64,7 +64,7 @@ def main():
         for j in range(i+1, len(agent_types)):
             pairs.append((agent_types[i], agent_types[j]))
             
-    total_games = len(pairs) * 5
+    total_games = sum(20 if (a1 == "rl" or a2 == "rl") else 5 for a1, a2 in pairs)
     game_count = 0
     
     # 成績データ構造の初期化
@@ -75,8 +75,11 @@ def main():
     
     for a1, a2 in pairs:
         print(f"\n--- {a1} vs {a2} (対戦開始) ---")
-        # 5試合行う (3試合はa1がP0、2試合はa2がP0として配置交代)
-        arrangements = [(a1, a2)] * 3 + [(a2, a1)] * 2
+        # rlが絡む場合は20試合、それ以外は5試合行う
+        if a1 == "rl" or a2 == "rl":
+            arrangements = [(a1, a2)] * 10 + [(a2, a1)] * 10
+        else:
+            arrangements = [(a1, a2)] * 3 + [(a2, a1)] * 2
         
         for p0, p1 in arrangements:
             game_count += 1

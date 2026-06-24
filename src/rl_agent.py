@@ -9,7 +9,7 @@ class RlAgent(BaseAgent):
     時間的差分学習（TD学習）に基づいて価値関数の重みパラメータを
     自己対戦シミュレーションやプレイを通じて学習・最適化する強化学習エージェント。
     """
-    def __init__(self, deck_path="deck.csv", weights=None, learning_rate=0.01, discount_factor=0.95, epsilon=0.1):
+    def __init__(self, deck_path="deck.csv", weights=None, learning_rate=0.0005, discount_factor=0.95, epsilon=0.1):
         super().__init__(deck_path)
         self.weights = weights if weights is not None else list(DEFAULT_WEIGHTS)
         self.alpha = learning_rate
@@ -25,9 +25,13 @@ class RlAgent(BaseAgent):
             try:
                 with open(weights_path, "r") as f:
                     vals = [float(x.strip()) for x in f.read().split(",") if x.strip()]
-                    if len(vals) == 10:
-                        self.weights = vals
-                        print("RL用に最適化された重みパラメータをロードしました。")
+                    if len(vals) == len(self.weights):
+                        import math
+                        if not any(math.isnan(x) for x in vals):
+                            self.weights = vals
+                            print("RL用に最適化された重みパラメータをロードしました。")
+                        else:
+                            print("警告: 保存された重みにnanが含まれているため、ロードをスキップしました。")
             except Exception as e:
                 print(f"重みパラメータのロードに失敗しました: {e}")
 
@@ -111,35 +115,49 @@ class RlAgent(BaseAgent):
                 features = get_features(obs)
                 next_features = get_features(next_obs)
                 
+                import math
                 v_s = sum(w * f for w, f in zip(self.weights, features))
                 v_s_prime = sum(w * f for w, f in zip(self.weights, next_features))
                 
-                # 報酬の定義 (サイドカードの獲得枚数に基づく即時報酬)
-                # 自分のサイドが減ったらプラス、相手のサイドが減ったらマイナス
-                prize_before = len(obs.current.players[obs.current.yourIndex].prize)
-                prize_after = len(next_obs.current.players[obs.current.yourIndex].prize)
-                opp_prize_before = len(obs.current.players[1 - obs.current.yourIndex].prize)
-                opp_prize_after = len(next_obs.current.players[1 - obs.current.yourIndex].prize)
-                
-                reward = (prize_before - prize_after) * 2.0 - (opp_prize_before - opp_prize_after) * 2.0
-                
-                # 試合終了時の追加報酬
-                if next_obs.current.result == 0:
-                    reward += 10.0 # 勝利
-                elif next_obs.current.result == 1:
-                    reward -= 10.0 # 敗北
-                
-                # TD誤差の計算: delta = reward + gamma * V(s') - V(s)
-                td_error = reward + self.gamma * v_s_prime - v_s
-                
-                # 重みの更新: w_i = w_i + alpha * td_error * feature_i
-                for i in range(len(self.weights)):
-                    self.weights[i] += self.alpha * td_error * features[i]
-                
-                # 定期的な重みの保存（簡易化のため毎選択ごとに保存）
-                # 実際の対戦に学習を永続化させるため
-                if random.random() < 0.1: # 保存処理のオーバーヘッド軽減のため10%の確率で実行
-                    self.save_weights()
+                if not math.isnan(v_s) and not math.isinf(v_s) and not math.isnan(v_s_prime) and not math.isinf(v_s_prime):
+                    # 報酬の定義 (サイドカードの獲得枚数に基づく即時報酬)
+                    prize_before = len(obs.current.players[obs.current.yourIndex].prize)
+                    prize_after = len(next_obs.current.players[obs.current.yourIndex].prize)
+                    opp_prize_before = len(obs.current.players[1 - obs.current.yourIndex].prize)
+                    opp_prize_after = len(next_obs.current.players[1 - obs.current.yourIndex].prize)
+                    
+                    reward = (prize_before - prize_after) * 2.0 - (opp_prize_before - opp_prize_after) * 2.0
+                    
+                    # 試合終了時の追加報酬
+                    if next_obs.current.result == 0:
+                        reward += 10.0 # 勝利
+                    elif next_obs.current.result == 1:
+                        reward -= 10.0 # 敗北
+                    
+                    # TD誤差の計算: delta = reward + gamma * V(s') - V(s)
+                    td_error = reward + self.gamma * v_s_prime - v_s
+                    
+                    # TD誤差をクリッピングして勾配爆発を防ぐ
+                    td_error = max(-50.0, min(50.0, td_error))
+                    
+                    # 重みの更新とクリッピング
+                    new_weights = list(self.weights)
+                    for i in range(len(self.weights)):
+                        update = self.alpha * td_error * features[i]
+                        # 1回の更新幅をクリップして緩やかに学習させる
+                        update = max(-2.0, min(2.0, update))
+                        if not math.isnan(update) and not math.isinf(update):
+                            new_weights[i] += update
+                            # 重みの値を一定範囲に制限
+                            new_weights[i] = max(-500.0, min(500.0, new_weights[i]))
+                    
+                    # 更新後の重みに異常が無いかチェック
+                    if not any(math.isnan(w) or math.isinf(w) for w in new_weights):
+                        self.weights = new_weights
+                        
+                        # 定期的な重みの保存
+                        if random.random() < 0.1:
+                            self.save_weights()
             except Exception as e:
                 # 更新時のエラーは無視して進行
                 pass
